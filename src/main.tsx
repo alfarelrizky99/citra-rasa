@@ -4,10 +4,9 @@ import App from './App.tsx';
 import { AuthProvider } from './contexts/AuthContext.tsx';
 import './index.css';
 
-// PWA service worker registration
 import { registerSW } from 'virtual:pwa-register';
 if ('serviceWorker' in navigator) {
-  registerSW({ immediate: true });
+    registerSW({ immediate: true });
 }
 
 createRoot(document.getElementById('root')!).render(
