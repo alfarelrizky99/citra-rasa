@@ -22,11 +22,13 @@ import AdminOrders from './pages/AdminOrders';
 import CustomerDashboard from './pages/CustomerDashboard';
 import CustomerOrders from './pages/CustomerOrders';
 import ManageBanners from './pages/ManageBanners';
+import PullToRefresh from './components/PullToRefresh';
 import { Loader2 } from 'lucide-react';
+import { APP_VERSION } from './version';
 
 function AppContent() {
     const { user, loading, signOut, isCustomer } = useAuth();
-    const [currentPage, setCurrentPage] = useState('home');
+    const [currentPage, setCurrentPage] = useState(() => localStorage.getItem('currentPage') || 'home');
     const [authPage, setAuthPage] = useState<'login' | 'register' | 'customer-login' | 'customer-register' | 'kasir-login' | 'kasir-register'>('customer-login');
 
     // Hidden kasir login: listen for "kasir" typed on homepage
@@ -45,23 +47,102 @@ function AppContent() {
         setKasirBuffer(newBuffer);
         
         if (newBuffer === 'kasir') {
-            setAuthPage('kasir-login');
-            setCurrentPage('login');
+            triggerKasirCheat();
             setKasirBuffer('');
         }
     }, [currentPage, kasirBuffer]);
+
+    const triggerKasirCheat = () => {
+        setAuthPage('kasir-login');
+        setCurrentPage('login');
+    };
 
     useEffect(() => {
         window.addEventListener('keydown', handleKasirCheat);
         return () => window.removeEventListener('keydown', handleKasirCheat);
     }, [handleKasirCheat]);
 
+    // Update theme-color meta tag and HTML background based on current page
+    useEffect(() => {
+        const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+        if (metaThemeColor) {
+            if (currentPage === 'home') {
+                metaThemeColor.setAttribute('content', '#411507'); // padang-950
+                document.documentElement.style.backgroundColor = '#411507';
+            } else if (isCustomer()) {
+                metaThemeColor.setAttribute('content', '#ffffff');
+                document.documentElement.style.backgroundColor = '#ffffff';
+            } else {
+                const isDark = document.documentElement.classList.contains('dark');
+                metaThemeColor.setAttribute('content', isDark ? '#1e293b' : '#ffffff');
+                document.documentElement.style.backgroundColor = isDark ? '#1e293b' : '#ffffff';
+            }
+        }
+    }, [currentPage, user]);
+
+    useEffect(() => {
+        const checkVersion = async () => {
+            try {
+                // Prevent infinite reload loops if update fails
+                if (sessionStorage.getItem('isUpdatingVersion')) {
+                    sessionStorage.removeItem('isUpdatingVersion');
+                    return;
+                }
+
+                const response = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
+                const data = await response.json();
+                
+                if (data.version && data.version !== APP_VERSION) {
+                    console.log(`New version detected: ${data.version} (current: ${APP_VERSION}). Updating...`);
+                    
+                    // Mark that we are attempting to update
+                    sessionStorage.setItem('isUpdatingVersion', 'true');
+
+                    // 1. Unregister all service workers
+                    if ('serviceWorker' in navigator) {
+                        const registrations = await navigator.serviceWorker.getRegistrations();
+                        for (const registration of registrations) {
+                            await registration.unregister();
+                        }
+                    }
+
+                    // 2. Clear all caches
+                    if ('caches' in window) {
+                        const cacheNames = await caches.keys();
+                        await Promise.all(cacheNames.map(name => caches.delete(name)));
+                    }
+
+                    // 3. Hard reload from server
+                    window.location.reload();
+                }
+            } catch (err) {
+                console.error('Failed to check version:', err);
+            }
+        };
+
+        // Check on mount
+        checkVersion();
+
+        // Also check every 30 minutes if the app is left open
+        const interval = setInterval(checkVersion, 30 * 60 * 1000);
+        return () => clearInterval(interval);
+    }, []);
+
     // When user logs in as customer, redirect to customer dashboard
     useEffect(() => {
-        if (user && isCustomer() && currentPage === 'login') {
+        if (user && isCustomer() && (currentPage === 'login' || currentPage === 'home')) {
             setCurrentPage('customer-dashboard');
+        } else if (user && !isCustomer() && (currentPage === 'login' || currentPage === 'home')) {
+            setCurrentPage('dashboard');
         }
     }, [user]);
+
+    // Persist current page
+    useEffect(() => {
+        if (currentPage !== 'login') {
+            localStorage.setItem('currentPage', currentPage);
+        }
+    }, [currentPage]);
 
     const renderAdminPage = () => {
         switch (currentPage) {
@@ -88,7 +169,9 @@ function AppContent() {
             case 'store-settings':
                 return <StoreSettings />;
             case 'admin-orders':
-                return <AdminOrders />;
+                return <AdminOrders isHistory={false} />;
+            case 'admin-history':
+                return <AdminOrders isHistory={true} />;
             default:
                 return <Dashboard onNavigate={setCurrentPage} />;
         }
@@ -99,7 +182,9 @@ function AppContent() {
             case 'customer-dashboard':
                 return <CustomerDashboard />;
             case 'customer-orders':
-                return <CustomerOrders />;
+                return <CustomerOrders isHistory={false} />;
+            case 'customer-history':
+                return <CustomerOrders isHistory={true} />;
             default:
                 return <CustomerDashboard />;
         }
@@ -130,6 +215,7 @@ function AppContent() {
                     }
                 }}
                 onLogout={signOut}
+                onSecretClick={triggerKasirCheat}
             />
         );
     }
@@ -195,9 +281,17 @@ function AppContent() {
 }
 
 function App() {
+    const handleRefresh = async () => {
+        // Clear session storage flag to allow version update checks again if needed
+        sessionStorage.removeItem('isUpdatingVersion');
+        window.location.reload();
+    };
+
     return (
         <ThemeProvider>
-            <AppContent />
+            <PullToRefresh onRefresh={handleRefresh}>
+                <AppContent />
+            </PullToRefresh>
         </ThemeProvider>
     );
 }

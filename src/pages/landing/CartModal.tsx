@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Plus, Minus, Trash2, ShoppingCart, MessageCircle, Send, MapPin, Home, Loader2, CheckCircle } from 'lucide-react';
 import type { CartItem } from './MenuSection';
 import { supabase } from '../../lib/supabase';
@@ -15,13 +15,14 @@ interface CartModalProps {
   freeShipping?: boolean;
   customerId?: string; // If logged-in customer
   storeId?: string;
+  onOrderSuccess?: () => void;
 }
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(price);
 }
 
-export default function CartModal({ isOpen, onClose, cart, onUpdateQty, onRemove, onClearCart, waNumber, freeShipping, customerId, storeId }: CartModalProps) {
+export default function CartModal({ isOpen, onClose, cart, onUpdateQty, onRemove, onClearCart, waNumber, freeShipping, customerId, storeId, onOrderSuccess }: CartModalProps) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -31,6 +32,30 @@ export default function CartModal({ isOpen, onClose, cart, onUpdateQty, onRemove
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
+
+  // Load saved info when form opens
+  useEffect(() => {
+    if (showForm) {
+      const savedInfo = localStorage.getItem('citrarasa_customer_info');
+      if (savedInfo) {
+        try {
+          const parsed = JSON.parse(savedInfo);
+          if (parsed.name) setName(parsed.name);
+          if (parsed.phone) setPhone(parsed.phone);
+          if (parsed.address) setAddress(parsed.address);
+          if (parsed.landmark) setLandmark(parsed.landmark);
+          if (parsed.lat) setLat(parsed.lat);
+          if (parsed.lng) setLng(parsed.lng);
+        } catch (e) { /* ignore */ }
+      }
+    }
+  }, [showForm]);
+
+  const saveToLocal = () => {
+    localStorage.setItem('citrarasa_customer_info', JSON.stringify({
+      name, phone, address, landmark, lat, lng
+    }));
+  };
 
   if (!isOpen) return null;
 
@@ -130,18 +155,20 @@ export default function CartModal({ isOpen, onClose, cart, onUpdateQty, onRemove
 
     try {
       await createOrderRecord(customerId);
+      saveToLocal();
 
       setOrderSuccess(true);
       onClearCart();
       setName(''); setPhone(''); setAddress(''); setLandmark('');
       setLat(null); setLng(null);
 
-      // Auto close after 3 seconds
+      // Auto close after 2 seconds
       setTimeout(() => {
         setOrderSuccess(false);
         setShowForm(false);
         onClose();
-      }, 3000);
+        if (onOrderSuccess) onOrderSuccess();
+      }, 2000);
     } catch (err) {
       console.error('Error creating order:', err);
       alert('Gagal membuat pesanan.');
@@ -253,7 +280,14 @@ export default function CartModal({ isOpen, onClose, cart, onUpdateQty, onRemove
                   <AddressMap
                     address={address}
                     onAddressChange={setAddress}
-                    onLocationChange={(newLat, newLng) => { setLat(newLat); setLng(newLng); }}
+                    onLocationChange={(newLat, newLng) => { 
+                      if (lat !== null && lng !== null) {
+                        if (!window.confirm("Yakin ingin mengubah titik lokasi pengantaran?")) return;
+                      }
+                      setLat(newLat); 
+                      setLng(newLng); 
+                    }}
+                    autoLocate={!lat}
                   />
                   <textarea value={address} onChange={e => setAddress(e.target.value)} placeholder="Jl. Contoh No. 123, RT/RW, Kelurahan, Kecamatan" rows={2} className="mt-2 w-full px-4 py-2.5 border border-padang-200 rounded-xl focus:ring-2 focus:ring-padang-500 focus:border-padang-500 outline-none text-sm resize-none" />
                 </div>

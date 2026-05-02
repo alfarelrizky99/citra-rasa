@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import type { CartItem } from './landing/MenuSection';
 import CartModal from './landing/CartModal';
+import ImageWithSkeleton from '../components/ImageWithSkeleton';
 
 interface PromoBanner {
   id: string;
@@ -336,19 +337,11 @@ export default function CustomerDashboard() {
               return (
                 <div key={item.id} className="bg-white rounded-2xl shadow-md border border-padang-100 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
                   <div className="relative h-32 sm:h-40 overflow-hidden">
-                    {item.image_url ? (
-                      <img 
-                        src={item.image_url} 
-                        alt={item.name} 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                        loading="lazy" 
-                        decoding="async" 
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-padang-100 flex items-center justify-center">
-                        <ImageIcon className="w-8 h-8 text-padang-300" />
-                      </div>
-                    )}
+                    <ImageWithSkeleton
+                      src={item.image_url || ''}
+                      alt={item.name}
+                      className="w-full h-full group-hover:scale-105 transition-transform duration-500"
+                    />
                     {qty > 0 && (
                       <div className="absolute top-2 right-2 bg-padang-600 text-white text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-lg">
                         <ShoppingCart className="w-3 h-3" /> {qty}

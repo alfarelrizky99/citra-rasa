@@ -5,6 +5,7 @@ interface AddressMapProps {
   address: string;
   onAddressChange: (address: string) => void;
   onLocationChange?: (lat: number, lng: number) => void;
+  autoLocate?: boolean;
 }
 
 interface NominatimResult {
@@ -25,7 +26,7 @@ interface MapPreviewLocation {
   label: string;
 }
 
-export default function AddressMap({ onAddressChange, onLocationChange }: AddressMapProps) {
+export default function AddressMap({ onAddressChange, onLocationChange, autoLocate }: AddressMapProps) {
   const [showMap, setShowMap] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<NominatimResult[]>([]);
@@ -147,7 +148,6 @@ export default function AddressMap({ onAddressChange, onLocationChange }: Addres
     }
   };
 
-
   const getCurrentLocation = () => {
     setShowMap(true);
     setLocationError('');
@@ -181,6 +181,14 @@ export default function AddressMap({ onAddressChange, onLocationChange }: Addres
       { enableHighAccuracy: true, maximumAge: 60000, timeout: 12000 }
     );
   };
+
+  const hasAutoLocated = useRef(false);
+  useEffect(() => {
+    if (autoLocate && !hasAutoLocated.current) {
+      hasAutoLocated.current = true;
+      getCurrentLocation();
+    }
+  }, [autoLocate]);
 
   const activeLat = previewLocation?.lat ?? selectedLat ?? mapCenter.lat;
   const activeLng = previewLocation?.lng ?? selectedLng ?? mapCenter.lng;

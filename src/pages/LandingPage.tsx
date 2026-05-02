@@ -16,11 +16,12 @@ interface LandingPageProps {
   onGoToCustomerLogin: () => void;
   onGoToDashboard: () => void;
   onLogout: () => void;
+  onSecretClick?: () => void;
 }
 
 const DEFAULT_WA = '0881024753628';
 
-export default function LandingPage({ user, onGoToCustomerLogin, onGoToDashboard, onLogout }: LandingPageProps) {
+export default function LandingPage({ user, onGoToCustomerLogin, onGoToDashboard, onLogout, onSecretClick }: LandingPageProps) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [waNumber, setWaNumber] = useState(DEFAULT_WA);
@@ -120,7 +121,7 @@ export default function LandingPage({ user, onGoToCustomerLogin, onGoToDashboard
       <LocationSection />
       <LocationToPaymentDivider />
       <PaymentSection />
-      <Footer />
+      <Footer onSecretClick={onSecretClick} />
       <ScrollToTop />
 
       {/* Floating cart button (mobile) */}

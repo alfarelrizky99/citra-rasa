@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { ClipboardList, Clock, Truck, CheckCircle2, CreditCard, MessageCircle, ChevronDown, ChevronUp, Package, Loader2, MapPin, Phone, User, ArrowRight, X } from 'lucide-react';
+import { ClipboardList, Clock, Truck, CheckCircle2, CreditCard, MessageCircle, ChevronDown, ChevronUp, Package, Loader2, MapPin, Phone, User, ArrowRight, X, Edit3 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import ChatWidget from '../components/ChatWidget';
+import EditOrderModal from '../components/EditOrderModal';
 import { getUnreadChatCounts, type UnreadChatSummary } from '../lib/chat';
 
 interface OrderItem {
@@ -90,7 +91,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: typeof Clock; color: 
 
 const STATUS_FLOW = ['menunggu_pembayaran', 'sedang_dilayani', 'dalam_perjalanan', 'selesai'];
 
-export default function AdminOrders() {
+export default function AdminOrders({ isHistory = false }: { isHistory?: boolean }) {
   const { user } = useAuth();
   const { darkMode } = useTheme();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -100,6 +101,7 @@ export default function AdminOrders() {
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [chatOrderId, setChatOrderId] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [chatNotice, setChatNotice] = useState<UnreadChatSummary | null>(null);
   const previousUnreadTotalRef = useRef(0);
   const unreadInitializedRef = useRef(false);
@@ -150,9 +152,9 @@ export default function AdminOrders() {
     };
   }, [user]);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (silent = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!silent && orders.length === 0) setLoading(true);
     const { data: ordersData } = await supabase
       .from('orders')
       .select('*')
@@ -195,7 +197,7 @@ export default function AdminOrders() {
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq('id', orderId)
         .eq('store_id', user!.store_id);
-      await fetchOrders();
+      await fetchOrders(true);
     } catch (err) {
       console.error('Error updating status:', err);
     }
@@ -207,16 +209,44 @@ export default function AdminOrders() {
     return idx < STATUS_FLOW.length - 1 ? STATUS_FLOW[idx + 1] : null;
   };
 
-  const tabs = [
-    { id: 'all', label: 'Semua', count: orders.length },
-    { id: 'menunggu_pembayaran', label: 'Menunggu', count: orders.filter(o => o.status === 'menunggu_pembayaran').length },
-    { id: 'sedang_dilayani', label: 'Diproses', count: orders.filter(o => o.status === 'sedang_dilayani').length },
-    { id: 'dalam_perjalanan', label: 'Dikirim', count: orders.filter(o => o.status === 'dalam_perjalanan').length },
-    { id: 'selesai', label: 'Selesai', count: orders.filter(o => o.status === 'selesai').length },
-    { id: 'dibatalkan', label: 'Batal', count: orders.filter(o => o.status === 'dibatalkan').length },
+  const tabs = isHistory ? [
+    { id: 'all', label: 'Semua Riwayat' },
+    { id: 'selesai', label: 'Selesai' },
+    { id: 'dibatalkan', label: 'Batal' },
+  ] : [
+    { id: 'all', label: 'Semua Aktif' },
+    { id: 'menunggu_pembayaran', label: 'Menunggu' },
+    { id: 'sedang_dilayani', label: 'Diproses' },
+    { id: 'dalam_perjalanan', label: 'Dikirim' },
+    { id: 'selesai', label: 'Selesai (Baru)' },
+    { id: 'dibatalkan', label: 'Batal (Baru)' },
   ];
 
-  const filteredOrders = orders.filter(o => {
+  const now = Date.now();
+  const filteredByHistory = orders.filter(o => {
+    const updatedDate = new Date(o.updated_at).getTime();
+    const daysDiff = (now - updatedDate) / (1000 * 60 * 60 * 24);
+    
+    const isCompleted = o.status === 'selesai';
+    const isCancelled = o.status === 'dibatalkan';
+    
+    // History includes ALL completed and cancelled orders
+    const isHistoryOrder = isCompleted || isCancelled;
+    
+    // BUT we delete (hide) them if they are too old
+    const isTooOld = (isCompleted && daysDiff > 7) || (isCancelled && daysDiff > 3);
+    
+    if (isTooOld) return false; // Hide completely
+    
+    return isHistory ? isHistoryOrder : !isHistoryOrder;
+  });
+
+  const tabsWithCount = tabs.map(t => ({
+    ...t,
+    count: t.id === 'all' ? filteredByHistory.length : filteredByHistory.filter(o => o.status === t.id).length
+  }));
+
+  const filteredOrders = filteredByHistory.filter(o => {
     const matchTab = activeTab === 'all' || o.status === activeTab;
     const matchType = typeFilter === 'all' || o.order_type === typeFilter;
     return matchTab && matchType;
@@ -254,10 +284,10 @@ export default function AdminOrders() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-            Manajemen Pesanan
+            {isHistory ? 'Riwayat Pesanan' : 'Manajemen Pesanan'}
           </h1>
           <p className={`text-sm mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-            {orders.length} total pesanan
+            {filteredByHistory.length} total pesanan {isHistory ? 'diarsipkan' : 'aktif'}
           </p>
         </div>
 
@@ -289,7 +319,7 @@ export default function AdminOrders() {
 
       {/* Status tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-        {tabs.map((tab) => (
+        {tabsWithCount.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -394,7 +424,7 @@ export default function AdminOrders() {
                       {order.customer_address && (
                         <div className={`flex items-start gap-2 px-3 py-2 rounded-lg sm:col-span-2 ${darkMode ? 'bg-slate-700/50' : 'bg-slate-50'}`}>
                           <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                          <div>
+                          <div className="flex-1">
                             <span className="text-sm">{order.customer_address}</span>
                             {order.customer_landmark && (
                               <span className={`block text-xs mt-0.5 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
@@ -402,6 +432,17 @@ export default function AdminOrders() {
                               </span>
                             )}
                           </div>
+                          {order.customer_lat && order.customer_lng && (
+                            <a
+                              href={`https://www.google.com/maps/dir/?api=1&destination=${order.customer_lat},${order.customer_lng}&travelmode=driving&dir_action=navigate`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-2 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg text-xs font-bold transition-colors"
+                              title="Buka Navigasi Maps"
+                            >
+                              📍 Navigasi
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
@@ -425,7 +466,19 @@ export default function AdminOrders() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      {!isHistory && order.status !== 'dibatalkan' && order.status !== 'selesai' && (
+                        <button
+                          onClick={() => setEditingOrder(order)}
+                          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all ${
+                            darkMode
+                              ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
+                        >
+                          <Edit3 className="w-4 h-4" /> Edit Menu
+                        </button>
+                      )}
                       {/* Update status button */}
                       {nextStatus && nextConfig && order.status !== 'dibatalkan' && (
                         <button
@@ -495,12 +548,20 @@ export default function AdminOrders() {
       {chatOrderId && (
         <ChatWidget
           orderId={chatOrderId}
-          isOpen={!!chatOrderId}
-          onClose={() => {
-            setChatOrderId(null);
-            fetchOrders();
-          }}
-          onReadChange={fetchOrders}
+          isOpen={true}
+          onClose={() => setChatOrderId(null)}
+          onReadChange={() => fetchOrders(orders.length === 0)}
+        />
+      )}
+
+      {editingOrder && user && (
+        <EditOrderModal
+          isOpen={true}
+          onClose={() => setEditingOrder(null)}
+          orderId={editingOrder.id}
+          storeId={user.store_id}
+          currentItems={editingOrder.items}
+          onSave={() => fetchOrders(orders.length === 0)}
         />
       )}
     </div>

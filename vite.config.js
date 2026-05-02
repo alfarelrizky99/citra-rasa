@@ -89,6 +89,38 @@ export default defineConfig({
                     }
                 ]
             },
+            workbox: {
+                runtimeCaching: [
+                    {
+                        urlPattern: /^https:\/\/.*\.supabase\.co\/.*$/,
+                        handler: 'StaleWhileRevalidate',
+                        options: {
+                            cacheName: 'supabase-cache',
+                            expiration: {
+                                maxEntries: 100,
+                                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 Days
+                            },
+                            cacheableResponse: {
+                                statuses: [0, 200]
+                            }
+                        }
+                    },
+                    {
+                        urlPattern: /^https:\/\/images\.pexels\.com\/.*$/,
+                        handler: 'CacheFirst',
+                        options: {
+                            cacheName: 'external-images',
+                            expiration: {
+                                maxEntries: 50,
+                                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 Days
+                            },
+                            cacheableResponse: {
+                                statuses: [0, 200]
+                            }
+                        }
+                    }
+                ]
+            },
             devOptions: {
                 enabled: true
             }

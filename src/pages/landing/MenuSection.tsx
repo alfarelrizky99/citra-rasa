@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Minus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import ImageWithSkeleton from '../../components/ImageWithSkeleton';
 
 export interface CartItem {
   id: string;
@@ -67,12 +68,10 @@ function MenuCard({ item, index, cartQty, onAdd, onRemove }: {
   return (
     <div className="menu-card group animate-slide-up" style={{ animationDelay: `${index * 0.1}s` }}>
       <div className="relative h-48 sm:h-56 overflow-hidden">
-        <img 
+        <ImageWithSkeleton 
           src={item.image_url || getImage(item.category)} 
           alt={item.name} 
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-          loading="lazy" 
-          decoding="async" 
+          className="w-full h-full group-hover:scale-110" 
         />
         <div className="absolute bottom-0 left-0 right-0 z-20 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-500">
           {cartQty > 0 ? (

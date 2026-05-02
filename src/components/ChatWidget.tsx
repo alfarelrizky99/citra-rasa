@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ImageIcon, Loader2, MessageCircle, Send, X } from 'lucide-react';
+import { ImageIcon, Loader2, MessageCircle, Send, X, Reply } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { markOrderMessagesRead } from '../lib/chat';
@@ -36,21 +36,79 @@ export default function ChatWidget({ orderId, isOpen, onClose, onReadChange }: C
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const onReadChangeRef = useRef(onReadChange);
 
   useEffect(() => {
-    if (isOpen && orderId) {
-      fetchMessages();
-      // Poll for new messages every 5 seconds
-      const interval = setInterval(fetchMessages, 5000);
-      return () => clearInterval(interval);
+    onReadChangeRef.current = onReadChange;
+  }, [onReadChange]);
+
+  const isAtBottom = () => {
+    if (!messagesContainerRef.current) return false;
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    return scrollHeight - scrollTop - clientHeight < 150;
+  };
+
+  const parseMessageText = (rawText: string) => {
+    if (rawText.includes('|||REPLY_CTX|||')) {
+      const parts = rawText.split('|||REPLY_CTX|||');
+      try {
+        const ctx = JSON.parse(parts[0]);
+        return { replyCtx: ctx, text: parts.slice(1).join('|||REPLY_CTX|||').trim() };
+      } catch (e) {
+        return { replyCtx: null, text: rawText };
+      }
     }
-  }, [isOpen, orderId]);
+    return { replyCtx: null, text: rawText };
+  };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (!isOpen || !orderId) return;
+
+    fetchMessages();
+
+    // Gunakan Supabase Realtime (WebSocket) untuk chat yang instan
+    const channel = supabase
+      .channel(`chat_${orderId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'order_messages',
+          filter: `order_id=eq.${orderId}`,
+        },
+        (payload) => {
+          const wasAtBottom = isAtBottom();
+          const newMessage = payload.new as ChatMessage;
+          setMessages((prev) => {
+            if (prev.some(m => m.id === newMessage.id)) return prev;
+            return [...prev, newMessage];
+          });
+
+          if (wasAtBottom) {
+            setTimeout(scrollToBottom, 100);
+          }
+
+          // Tandai sudah dibaca jika pengirimnya bukan kita
+          if (user && newMessage.sender_id !== user.id) {
+            markOrderMessagesRead(orderId, user.id).then(() => {
+              onReadChangeRef.current?.();
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isOpen, orderId, user]);
+
+
 
   useEffect(() => {
     return () => {
@@ -71,9 +129,10 @@ export default function ChatWidget({ orderId, isOpen, onClose, onReadChange }: C
       .order('created_at', { ascending: true });
     if (data) {
       setMessages(data);
+      setTimeout(scrollToBottom, 100);
       if (user) {
         await markOrderMessagesRead(orderId, user.id);
-        onReadChange?.();
+        onReadChangeRef.current?.();
       }
     }
     setLoading(false);
@@ -122,12 +181,21 @@ export default function ChatWidget({ orderId, isOpen, onClose, onReadChange }: C
         attachmentName = selectedImage.name;
       }
 
+      let finalMessage = trimmedMessage || (selectedImage ? 'Bukti pembayaran' : '');
+      if (replyTo) {
+        const ctx = {
+          sender: replyTo.sender_name,
+          text: parseMessageText(replyTo.message).text.substring(0, 60)
+        };
+        finalMessage = JSON.stringify(ctx) + '|||REPLY_CTX|||' + finalMessage;
+      }
+
       const { error: sendError } = await supabase.from('order_messages').insert([{
         order_id: orderId,
         sender_id: user.id,
         sender_name: user.name || user.email,
         sender_role: user.role,
-        message: trimmedMessage || 'Bukti pembayaran',
+        message: finalMessage,
         attachment_url: attachmentUrl,
         attachment_type: attachmentType,
         attachment_name: attachmentName,
@@ -137,7 +205,9 @@ export default function ChatWidget({ orderId, isOpen, onClose, onReadChange }: C
 
       setNewMessage('');
       clearSelectedImage();
+      setReplyTo(null);
       await fetchMessages();
+      setTimeout(scrollToBottom, 100);
     } catch (err) {
       console.error('Failed to send message:', err);
       setError(err instanceof Error ? err.message : 'Gagal mengirim pesan.');
@@ -200,7 +270,7 @@ export default function ChatWidget({ orderId, isOpen, onClose, onReadChange }: C
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 bg-gradient-to-b from-padang-50/50 to-white">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-4 bg-gradient-to-b from-padang-50/50 to-white">
           {loading && messages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="w-6 h-6 text-padang-400 animate-spin" />
@@ -253,10 +323,22 @@ export default function ChatWidget({ orderId, isOpen, onClose, onReadChange }: C
                               />
                             </button>
                           )}
-                          <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.message}</p>
-                          <p className={`text-xs mt-1 ${isMe ? 'text-white/60' : 'text-padang-400'} text-right`}>
-                            {formatTime(msg.created_at)}
-                          </p>
+                          {/* Reply Context */}
+                          {parseMessageText(msg.message).replyCtx && (
+                            <div className={`mb-2 pl-3 py-1.5 border-l-4 text-xs rounded-r-lg ${isMe ? 'bg-black/10 border-white/40' : 'bg-padang-50 border-padang-300'}`}>
+                              <p className="font-bold opacity-80">{parseMessageText(msg.message).replyCtx.sender}</p>
+                              <p className="opacity-70 line-clamp-2">{parseMessageText(msg.message).replyCtx.text}</p>
+                            </div>
+                          )}
+                          <p className="text-sm whitespace-pre-wrap leading-relaxed">{parseMessageText(msg.message).text}</p>
+                          <div className={`flex items-center justify-end gap-2 mt-1 ${isMe ? 'text-white/60' : 'text-padang-400'}`}>
+                            <p className="text-xs">
+                              {formatTime(msg.created_at)}
+                            </p>
+                            <button onClick={() => setReplyTo(msg)} className="hover:text-padang-600 transition-colors" title="Balas">
+                              <Reply className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -269,7 +351,18 @@ export default function ChatWidget({ orderId, isOpen, onClose, onReadChange }: C
         </div>
 
         {/* Input */}
-        <div className="border-t border-padang-100 p-3 bg-white">
+        <div className="border-t border-padang-100 p-3 bg-white flex flex-col gap-2">
+          {replyTo && (
+            <div className="flex items-start justify-between bg-padang-50 border border-padang-200 p-2 rounded-xl text-sm">
+              <div className="min-w-0 flex-1 pl-2 border-l-2 border-padang-400">
+                <p className="font-bold text-padang-700 text-xs">{replyTo.sender_name}</p>
+                <p className="text-padang-500 text-xs truncate">{parseMessageText(replyTo.message).text}</p>
+              </div>
+              <button onClick={() => setReplyTo(null)} className="p-1 hover:bg-padang-200 rounded-lg text-padang-500">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           {imagePreviewUrl && (
             <div className="mb-3 rounded-xl border border-padang-100 bg-padang-50 p-2">
               <div className="flex items-start gap-3">

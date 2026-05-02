@@ -11,6 +11,7 @@ interface CustomerLayoutProps {
 const CUSTOMER_MENU = [
     { id: 'customer-dashboard', label: 'Beranda', icon: LayoutDashboard },
     { id: 'customer-orders', label: 'Pesanan Saya', icon: ClipboardList },
+    { id: 'customer-history', label: 'Riwayat & Arsip', icon: ClipboardList },
 ];
 
 export default function CustomerLayout({ children, currentPage, onNavigate }: CustomerLayoutProps) {
@@ -20,7 +21,7 @@ export default function CustomerLayout({ children, currentPage, onNavigate }: Cu
     return (
         <div className="min-h-screen bg-gradient-to-b from-padang-50 to-white">
             {/* Top navbar */}
-            <nav className="sticky top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-padang-100 shadow-sm">
+            <nav className="sticky top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-padang-100 shadow-sm pt-[env(safe-area-inset-top)]">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-16">
                         {/* Logo */}

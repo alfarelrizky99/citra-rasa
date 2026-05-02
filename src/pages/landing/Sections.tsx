@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { MapPin, Phone, Clock, CreditCard, QrCode, Banknote, Star, Flame, UtensilsCrossed, Heart, ArrowUp, Instagram, Facebook, MessageCircle, X } from 'lucide-react';
+import { APP_VERSION } from '../../version';
 
 function useInView(threshold = 0.15) {
   const ref = useRef<HTMLDivElement>(null);
@@ -207,7 +208,18 @@ export function PaymentSection() {
   );
 }
 
-export function Footer() {
+export function Footer({ onSecretClick }: { onSecretClick?: () => void }) {
+  const [clickCount, setClickCount] = useState(0);
+
+  const handleSecretClick = () => {
+    const newCount = clickCount + 1;
+    setClickCount(newCount);
+    if (newCount >= 5) {
+      if (onSecretClick) onSecretClick();
+      setClickCount(0); // Reset after trigger
+    }
+  };
+
   return (
     <footer className="bg-padang-950 border-t border-white/10 pt-16 pb-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -252,7 +264,10 @@ export function Footer() {
         </div>
         <div className="border-t border-white/10 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-white/40 text-sm">&copy; 2025 Citra Rasa. Hak cipta dilindungi.</p>
-          <p className="text-white/30 text-xs">Dibuat dengan <Heart className="w-3 h-3 inline text-spice-500 fill-spice-500" /> oleh Oneto Group</p>
+          <div className="text-right">
+            <p className="text-white/30 text-xs mb-1">Dibuat dengan <Heart className="w-3 h-3 inline text-spice-500 fill-spice-500" /> oleh <span onClick={handleSecretClick} className="cursor-pointer select-none">Oneto Group</span></p>
+            <p className="text-white/20 text-[10px]">Versi {APP_VERSION}</p>
+          </div>
         </div>
       </div>
     </footer>

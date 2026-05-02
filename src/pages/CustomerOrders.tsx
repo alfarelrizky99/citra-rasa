@@ -81,11 +81,13 @@ function StatusTracker({ currentStatus }: { currentStatus: string }) {
   return (
     <div className="flex items-center justify-between relative py-2">
       {/* Line */}
-      <div className="absolute top-1/2 left-6 right-6 h-0.5 bg-padang-200 -translate-y-1/2" />
-      <div
-        className="absolute top-1/2 left-6 h-0.5 bg-gradient-to-r from-leaf-500 to-padang-500 -translate-y-1/2 transition-all duration-500"
-        style={{ width: `${Math.max(0, (currentIdx / (STATUS_STEPS.length - 1)) * (100 - 12))}%` }}
-      />
+      <div className="absolute top-4 left-6 right-6 h-0.5 bg-padang-200" />
+      <div className="absolute top-4 left-6 right-6 h-0.5">
+        <div
+          className="h-full bg-gradient-to-r from-leaf-500 to-padang-500 transition-all duration-500"
+          style={{ width: `${Math.max(0, (currentIdx / (STATUS_STEPS.length - 1)) * 100)}%` }}
+        />
+      </div>
 
       {STATUS_STEPS.map((step, idx) => {
         const config = STATUS_CONFIG[step];
@@ -114,7 +116,7 @@ function StatusTracker({ currentStatus }: { currentStatus: string }) {
   );
 }
 
-export default function CustomerOrders() {
+export default function CustomerOrders({ isHistory = false }: { isHistory?: boolean }) {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,7 +163,7 @@ export default function CustomerOrders() {
           console.log('Order item change received!', payload);
           // For simplicity, re-fetch all orders if any order_item changes.
           // A more granular update would involve checking if the changed item belongs to the current user's orders.
-          fetchOrders();
+          fetchOrders(true);
         }
       )
       .subscribe();
@@ -172,9 +174,9 @@ export default function CustomerOrders() {
     };
   }, [user]);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (silent = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!silent && orders.length === 0) setLoading(true);
     const { data: ordersData } = await supabase
       .from('orders')
       .select('*')
@@ -226,16 +228,39 @@ export default function CustomerOrders() {
     }
   };
 
-  const tabs = [
-    { id: 'all', label: 'Semua' },
+  const tabs = isHistory ? [
+    { id: 'all', label: 'Semua Riwayat' },
+    { id: 'selesai', label: 'Selesai' },
+    { id: 'dibatalkan', label: 'Batal' },
+  ] : [
+    { id: 'all', label: 'Semua Aktif' },
     { id: 'menunggu_pembayaran', label: 'Menunggu' },
     { id: 'sedang_dilayani', label: 'Diproses' },
     { id: 'dalam_perjalanan', label: 'Dikirim' },
-    { id: 'selesai', label: 'Selesai' },
-    { id: 'dibatalkan', label: 'Batal' },
+    { id: 'selesai', label: 'Selesai (Baru)' },
+    { id: 'dibatalkan', label: 'Batal (Baru)' },
   ];
 
-  const filteredOrders = activeTab === 'all' ? orders : orders.filter(o => o.status === activeTab);
+  const now = Date.now();
+  const filteredByHistory = orders.filter(o => {
+    const updatedDate = new Date(o.updated_at).getTime();
+    const daysDiff = (now - updatedDate) / (1000 * 60 * 60 * 24);
+    
+    const isCompleted = o.status === 'selesai';
+    const isCancelled = o.status === 'dibatalkan';
+    
+    // History includes ALL completed and cancelled orders
+    const isHistoryOrder = isCompleted || isCancelled;
+    
+    // BUT we delete (hide) them if they are too old
+    const isTooOld = (isCompleted && daysDiff > 7) || (isCancelled && daysDiff > 3);
+    
+    if (isTooOld) return false; // Hide completely
+    
+    return isHistory ? isHistoryOrder : !isHistoryOrder;
+  });
+
+  const filteredOrders = activeTab === 'all' ? filteredByHistory : filteredByHistory.filter(o => o.status === activeTab);
 
   return (
     <div className="space-y-6">
@@ -264,9 +289,11 @@ export default function CustomerOrders() {
       )}
       <div>
         <h1 className="font-display text-2xl sm:text-3xl font-bold text-padang-900">
-          Pesanan <span className="text-spice-600">Saya</span>
+          {isHistory ? 'Riwayat & Arsip' : 'Pesanan'} <span className="text-spice-600">{isHistory ? 'Pesanan' : 'Saya'}</span>
         </h1>
-        <p className="text-padang-600/70 text-sm mt-1">Pantau status pesanan Anda secara real-time</p>
+        <p className="text-padang-600/70 text-sm mt-1">
+          {isHistory ? 'Daftar pesanan lama yang sudah diarsipkan' : 'Pantau status pesanan Anda secara real-time'}
+        </p>
       </div>
 
       {/* Tabs */}
@@ -284,7 +311,7 @@ export default function CustomerOrders() {
             {tab.label}
             {tab.id !== 'all' && (
               <span className="ml-1.5 text-xs opacity-70">
-                ({orders.filter(o => o.status === tab.id).length})
+                ({filteredByHistory.filter(o => o.status === tab.id).length})
               </span>
             )}
           </button>
@@ -413,15 +440,12 @@ export default function CustomerOrders() {
       )}
 
       {/* Chat Widget */}
-      {chatOrderId && (
+      {chatOrderId && user && (
         <ChatWidget
           orderId={chatOrderId}
-          isOpen={!!chatOrderId}
-          onClose={() => {
-            setChatOrderId(null);
-            fetchOrders();
-          }}
-          onReadChange={fetchOrders}
+          isOpen={true}
+          onClose={() => setChatOrderId(null)}
+          onReadChange={() => fetchOrders(true)}
         />
       )}
     </div>

@@ -24,6 +24,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, THEME_COLORS } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { APP_VERSION } from '../version';
 
 interface LayoutProps {
     children: ReactNode;
@@ -45,7 +46,8 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
     { id: 'materials', label: 'Bahan Baku', icon: Package, configurable: true },
     { id: 'products', label: 'Produk & Resep', icon: UtensilsCrossed, configurable: true },
     { id: 'sales', label: 'Penjualan', icon: ShoppingCart, configurable: true },
-    { id: 'admin-orders', label: 'Pesanan', icon: ListChecks, roles: ['admin', 'superadmin'] },
+    { id: 'admin-orders', label: 'Pesanan Aktif', icon: ListChecks, roles: ['admin', 'superadmin'] },
+    { id: 'admin-history', label: 'Riwayat Pesanan', icon: ListChecks, roles: ['admin', 'superadmin'] },
     { id: 'waste', label: 'Waste/Shrinkage', icon: Trash2, configurable: true },
     { id: 'approval', label: 'Approval User', icon: Clock, roles: ['admin', 'superadmin'] },
     { id: 'manage-users', label: 'Kelola User', icon: Users, roles: ['admin', 'superadmin'] },
@@ -156,7 +158,7 @@ export default function Layout({ children, currentPage, onNavigate }: LayoutProp
                         } text-white transform transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col`}
                 >
                     {/* Sidebar Header */}
-                    <div className={`flex items-center h-16 border-b ${darkMode ? 'border-slate-700' : 'border-slate-200'} ${sidebarCollapsed ? 'lg:justify-center lg:px-2' : 'justify-between px-6'}`}>
+                    <div className={`flex items-center h-16 border-b ${darkMode ? 'border-slate-700' : 'border-slate-200'} ${sidebarCollapsed ? 'lg:justify-center lg:px-2' : 'justify-between px-6'} pt-[env(safe-area-inset-top)]`}>
                         <h1 className={`text-xl font-bold truncate pr-2 ${sidebarCollapsed ? 'lg:hidden' : ''} ${darkMode ? `bg-gradient-to-r ${theme.sidebarHover} bg-clip-text text-transparent` : 'text-blue-600'}`}>
                             {user?.store_name || 'HPP Manager'}
                         </h1>
@@ -262,12 +264,17 @@ export default function Layout({ children, currentPage, onNavigate }: LayoutProp
                                 )}
                             </button>
                         </div>
+
+                        {/* Version Info */}
+                        <div className={`mt-2 text-center text-[10px] ${sidebarCollapsed ? 'hidden' : 'block'} ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                            Versi {APP_VERSION}
+                        </div>
                     </div>
                 </aside>
 
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col overflow-hidden">
-                    <header className={`h-16 ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'} border-b flex items-center justify-between px-6 shadow-sm transition-colors duration-300`}>
+                    <header className={`h-16 ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'} border-b flex items-center justify-between px-6 shadow-sm transition-colors duration-300 pt-[env(safe-area-inset-top)]`}>
                         <div className="flex items-center">
                             <button onClick={() => setSidebarOpen(true)} className={`lg:hidden mr-4 ${darkMode ? 'text-slate-300' : 'text-slate-600'} hover:text-slate-900`}>
                                 <Menu size={24} />
