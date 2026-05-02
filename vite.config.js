@@ -100,6 +100,15 @@ export default defineConfig({
     build: {
         minify: 'esbuild',
         sourcemap: false,
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    'react-vendor': ['react', 'react-dom'],
+                    'supabase': ['@supabase/supabase-js'],
+                    'icons': ['lucide-react']
+                }
+            }
+        }
     },
     esbuild: {
         drop: ['console', 'debugger'],
