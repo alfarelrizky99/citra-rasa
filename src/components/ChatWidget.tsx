@@ -408,7 +408,7 @@ export default function ChatWidget({ orderId, isOpen, onClose, onReadChange }: C
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ketik pesan..."
-              className="flex-1 px-4 py-2.5 border border-padang-200 rounded-xl text-sm focus:ring-2 focus:ring-padang-500 focus:border-padang-500 outline-none"
+              className="flex-1 px-4 py-2.5 bg-white text-padang-900 placeholder:text-padang-400 border border-padang-200 rounded-xl text-sm focus:ring-2 focus:ring-padang-500 focus:border-padang-500 outline-none"
             />
             <button
               onClick={sendMessage}

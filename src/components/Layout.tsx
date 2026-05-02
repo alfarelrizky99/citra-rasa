@@ -20,6 +20,9 @@ import {
     ChevronsLeft,
     ChevronsRight,
     Image as ImageIcon,
+    BarChart3,
+    ChevronDown,
+    ChevronUp,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, THEME_COLORS } from '../contexts/ThemeContext';
@@ -38,23 +41,32 @@ interface MenuItem {
     icon: typeof LayoutDashboard;
     roles?: string[];  // role-based visibility
     configurable?: boolean;  // can be toggled in menu management
+    group?: string; // Grouping category in the sidebar
 }
 
 export const ALL_MENU_ITEMS: MenuItem[] = [
+    // Main (No group)
     { id: 'home', label: 'Beranda', icon: Home },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, configurable: true },
-    { id: 'materials', label: 'Bahan Baku', icon: Package, configurable: true },
-    { id: 'products', label: 'Produk & Resep', icon: UtensilsCrossed, configurable: true },
-    { id: 'sales', label: 'Penjualan', icon: ShoppingCart, configurable: true },
-    { id: 'admin-orders', label: 'Pesanan Aktif', icon: ListChecks, roles: ['admin', 'superadmin'] },
-    { id: 'admin-history', label: 'Riwayat Pesanan', icon: ListChecks, roles: ['admin', 'superadmin'] },
-    { id: 'waste', label: 'Waste/Shrinkage', icon: Trash2, configurable: true },
-    { id: 'approval', label: 'Approval User', icon: Clock, roles: ['admin', 'superadmin'] },
-    { id: 'manage-users', label: 'Kelola User', icon: Users, roles: ['admin', 'superadmin'] },
-    { id: 'manage-menus', label: 'Kelola Menu', icon: ListChecks, roles: ['admin', 'superadmin'] },
-    { id: 'manage-banners', label: 'Kelola Banner', icon: ImageIcon, roles: ['admin', 'superadmin'] },
-    { id: 'store-settings', label: 'Pengaturan', icon: Settings, roles: ['admin', 'superadmin'] },
-    { id: 'manage-stores', label: 'Kelola Toko', icon: Building2, roles: ['superadmin'] },
+
+    // Transaksi & Laporan
+    { id: 'sales', label: 'Penjualan', icon: ShoppingCart, configurable: true, group: 'Transaksi & Laporan' },
+    { id: 'admin-orders', label: 'Pesanan Aktif', icon: ListChecks, roles: ['admin', 'superadmin'], group: 'Transaksi & Laporan' },
+    { id: 'admin-history', label: 'Riwayat Pesanan', icon: ListChecks, roles: ['admin', 'superadmin'], group: 'Transaksi & Laporan' },
+    { id: 'analytics', label: 'Laporan & Analitik', icon: BarChart3, configurable: true, group: 'Transaksi & Laporan' },
+
+    // Katalog & Inventaris
+    { id: 'products', label: 'Produk & Resep', icon: UtensilsCrossed, configurable: true, group: 'Katalog & Inventaris' },
+    { id: 'materials', label: 'Bahan Baku', icon: Package, configurable: true, group: 'Katalog & Inventaris' },
+    { id: 'waste', label: 'Waste/Shrinkage', icon: Trash2, configurable: true, group: 'Katalog & Inventaris' },
+
+    // Pengaturan & Sistem
+    { id: 'manage-menus', label: 'Kelola Menu', icon: ListChecks, roles: ['admin', 'superadmin'], group: 'Pengaturan & Sistem' },
+    { id: 'manage-banners', label: 'Kelola Banner', icon: ImageIcon, roles: ['admin', 'superadmin'], group: 'Pengaturan & Sistem' },
+    { id: 'approval', label: 'Approval User', icon: Clock, roles: ['admin', 'superadmin'], group: 'Pengaturan & Sistem' },
+    { id: 'manage-users', label: 'Kelola User', icon: Users, roles: ['admin', 'superadmin'], group: 'Pengaturan & Sistem' },
+    { id: 'store-settings', label: 'Pengaturan', icon: Settings, roles: ['admin', 'superadmin'], group: 'Pengaturan & Sistem' },
+    { id: 'manage-stores', label: 'Kelola Toko', icon: Building2, roles: ['superadmin'], group: 'Pengaturan & Sistem' },
 ];
 
 export default function Layout({ children, currentPage, onNavigate }: LayoutProps) {
@@ -67,6 +79,11 @@ export default function Layout({ children, currentPage, onNavigate }: LayoutProp
     const { darkMode, toggleDarkMode, themeColor, setThemeColor, theme } = useTheme();
     const [pendingCount, setPendingCount] = useState(0);
     const [hiddenMenus, setHiddenMenus] = useState<Set<string>>(new Set());
+    const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+
+    const toggleGroup = (groupName: string) => {
+        setCollapsedGroups(prev => prev.includes(groupName) ? prev.filter(g => g !== groupName) : [...prev, groupName]);
+    };
 
     const toggleSidebarCollapse = () => {
         setSidebarCollapsed(prev => {
@@ -181,37 +198,79 @@ export default function Layout({ children, currentPage, onNavigate }: LayoutProp
 
                     {/* Navigation */}
                     <nav className={`flex-1 overflow-y-auto ${sidebarCollapsed ? 'lg:p-2' : 'p-4'} space-y-1`}>
-                        {visibleMenuItems.map((item) => {
-                            const Icon = item.icon;
-                            const isActive = currentPage === item.id;
+                        {(() => {
+                            const grouped: Record<string, MenuItem[]> = { '': [] };
+                            visibleMenuItems.forEach(item => {
+                                const group = item.group || '';
+                                if (!grouped[group]) grouped[group] = [];
+                                grouped[group].push(item);
+                            });
+
+                            const renderMenuItem = (item: MenuItem) => {
+                                const Icon = item.icon;
+                                const isActive = currentPage === item.id;
+                                return (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => { onNavigate(item.id); setSidebarOpen(false); }}
+                                        className={`group relative w-full flex items-center ${sidebarCollapsed ? 'lg:justify-center lg:px-0 lg:py-3' : 'px-4 py-3'
+                                            } gap-3 rounded-lg transition-all duration-200 ${isActive
+                                                ? (darkMode ? `bg-gradient-to-r ${theme.gradient} text-white shadow-lg ${theme.badge}` : 'bg-blue-600 text-white shadow-md')
+                                                : (darkMode ? 'text-slate-300 hover:bg-slate-700/50 hover:text-white' : 'text-slate-600 hover:bg-slate-50 hover:text-blue-600')
+                                            }`}
+                                        title={sidebarCollapsed ? item.label : undefined}
+                                    >
+                                        <Icon size={20} className="flex-shrink-0" />
+                                        <span className={`font-medium whitespace-nowrap ${sidebarCollapsed ? 'lg:hidden' : ''}`}>{item.label}</span>
+                                        {item.id === 'approval' && pendingCount > 0 && (
+                                            <span className={`bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse ${sidebarCollapsed ? 'lg:absolute lg:-top-1 lg:-right-1 lg:px-1.5 lg:py-0.5 lg:text-[10px]' : 'ml-auto'}`}>
+                                                {pendingCount}
+                                            </span>
+                                        )}
+                                        {/* Tooltip on collapsed hover */}
+                                        {sidebarCollapsed && (
+                                            <div className="hidden lg:block absolute left-full ml-2 px-3 py-1.5 bg-slate-800 text-white text-sm font-medium rounded-lg shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-[60]">
+                                                {item.label}
+                                                <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-2 bg-slate-800 rotate-45" />
+                                            </div>
+                                        )}
+                                    </button>
+                                );
+                            };
+
                             return (
-                                <button
-                                    key={item.id}
-                                    onClick={() => { onNavigate(item.id); setSidebarOpen(false); }}
-                                    className={`group relative w-full flex items-center ${sidebarCollapsed ? 'lg:justify-center lg:px-0 lg:py-3' : 'px-4 py-3'
-                                        } gap-3 rounded-lg transition-all duration-200 ${isActive
-                                            ? (darkMode ? `bg-gradient-to-r ${theme.gradient} text-white shadow-lg ${theme.badge}` : 'bg-blue-600 text-white shadow-md')
-                                            : (darkMode ? 'text-slate-300 hover:bg-slate-700/50 hover:text-white' : 'text-slate-600 hover:bg-slate-50 hover:text-blue-600')
-                                        }`}
-                                    title={sidebarCollapsed ? item.label : undefined}
-                                >
-                                    <Icon size={20} className="flex-shrink-0" />
-                                    <span className={`font-medium whitespace-nowrap ${sidebarCollapsed ? 'lg:hidden' : ''}`}>{item.label}</span>
-                                    {item.id === 'approval' && pendingCount > 0 && (
-                                        <span className={`bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse ${sidebarCollapsed ? 'lg:absolute lg:-top-1 lg:-right-1 lg:px-1.5 lg:py-0.5 lg:text-[10px]' : 'ml-auto'}`}>
-                                            {pendingCount}
-                                        </span>
-                                    )}
-                                    {/* Tooltip on collapsed hover */}
-                                    {sidebarCollapsed && (
-                                        <div className="hidden lg:block absolute left-full ml-2 px-3 py-1.5 bg-slate-800 text-white text-sm font-medium rounded-lg shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-[60]">
-                                            {item.label}
-                                            <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-2 bg-slate-800 rotate-45" />
-                                        </div>
-                                    )}
-                                </button>
+                                <>
+                                    {/* Ungrouped items */}
+                                    {grouped[''].map(item => renderMenuItem(item))}
+
+                                    {/* Grouped items */}
+                                    {Object.keys(grouped).filter(g => g !== '').map((groupName, index) => {
+                                        const isCollapsed = collapsedGroups.includes(groupName);
+                                        return (
+                                            <div key={groupName} className={`pt-4 pb-1 ${index > 0 ? 'border-t border-slate-200 dark:border-slate-800' : ''}`}>
+                                                {!sidebarCollapsed && (
+                                                    <button
+                                                        onClick={() => toggleGroup(groupName)}
+                                                        className="w-full flex items-center justify-between px-4 mb-2 text-left hover:opacity-80 transition-opacity"
+                                                    >
+                                                        <span className={`text-xs font-bold uppercase tracking-wider ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                            {groupName}
+                                                        </span>
+                                                        {isCollapsed ? <ChevronDown size={14} className={darkMode ? 'text-slate-500' : 'text-slate-400'} /> : <ChevronUp size={14} className={darkMode ? 'text-slate-500' : 'text-slate-400'} />}
+                                                    </button>
+                                                )}
+                                                {sidebarCollapsed && (
+                                                    <div className="w-6 mx-auto border-t border-slate-300 dark:border-slate-700 my-4" />
+                                                )}
+                                                <div className={`space-y-1 ${!sidebarCollapsed && isCollapsed ? 'hidden' : ''}`}>
+                                                    {grouped[groupName].map(item => renderMenuItem(item))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </>
                             );
-                        })}
+                        })()}
                     </nav>
 
                     {/* Bottom section */}
@@ -283,20 +342,20 @@ export default function Layout({ children, currentPage, onNavigate }: LayoutProp
                                 {visibleMenuItems.find((item) => item.id === currentPage)?.label || 'Dashboard'}
                             </h2>
                         </div>
-                        
+
                         {/* Dark Mode Toggle - Sun/Moon in Navbar */}
                         <button
                             onClick={toggleDarkMode}
                             className={`relative w-14 h-7 rounded-full transition-all duration-500 ${darkMode
                                 ? 'bg-indigo-900 shadow-inner shadow-indigo-950'
                                 : 'bg-slate-200'
-                            }`}
+                                }`}
                             title={darkMode ? 'Mode Terang' : 'Mode Gelap'}
                         >
                             <div className={`absolute top-0.5 w-6 h-6 rounded-full transition-all duration-500 transform flex items-center justify-center ${darkMode
                                 ? 'translate-x-7 bg-indigo-200'
                                 : 'translate-x-0.5 bg-amber-300'
-                            }`}>
+                                }`}>
                                 {darkMode ? (
                                     <Moon size={14} className="text-indigo-800" />
                                 ) : (
@@ -346,7 +405,7 @@ export default function Layout({ children, currentPage, onNavigate }: LayoutProp
                                         className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all ${!darkMode
                                             ? 'border-amber-400 bg-amber-50 text-amber-700'
                                             : `${darkMode ? 'border-slate-600 bg-slate-700 text-slate-400 hover:border-slate-500' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'}`
-                                        }`}
+                                            }`}
                                     >
                                         <Sun size={18} />
                                         Light
@@ -356,7 +415,7 @@ export default function Layout({ children, currentPage, onNavigate }: LayoutProp
                                         className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all ${darkMode
                                             ? 'border-indigo-400 bg-indigo-500/20 text-indigo-300'
                                             : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'
-                                        }`}
+                                            }`}
                                     >
                                         <Moon size={18} />
                                         Dark
@@ -375,7 +434,7 @@ export default function Layout({ children, currentPage, onNavigate }: LayoutProp
                                             className={`flex items-center gap-2 p-2.5 rounded-xl border-2 text-xs font-medium transition-all ${themeColor === key
                                                 ? `border-current ring-1 ring-current/20 ${darkMode ? 'bg-slate-700' : 'bg-slate-50'}`
                                                 : `${darkMode ? 'border-slate-600 bg-slate-700 hover:border-slate-500' : 'border-slate-200 bg-white hover:border-slate-300'}`
-                                            }`}
+                                                }`}
                                             style={themeColor === key ? { borderColor: val.primary, color: val.primary } : undefined}
                                         >
                                             <div className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: val.primary }} />

@@ -22,6 +22,7 @@ import AdminOrders from './pages/AdminOrders';
 import CustomerDashboard from './pages/CustomerDashboard';
 import CustomerOrders from './pages/CustomerOrders';
 import ManageBanners from './pages/ManageBanners';
+import Analytics from './pages/Analytics';
 import PullToRefresh from './components/PullToRefresh';
 import { Loader2 } from 'lucide-react';
 import { APP_VERSION } from './version';
@@ -154,6 +155,8 @@ function AppContent() {
                 return <Products />;
             case 'sales':
                 return <Sales />;
+            case 'analytics':
+                return <Analytics />;
             case 'waste':
                 return <Waste />;
             case 'approval':
