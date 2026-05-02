@@ -18,6 +18,38 @@
 <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Anti-Inspect Element Protection -->
+    <script>
+        document.addEventListener('contextmenu', event => event.preventDefault());
+        document.addEventListener('keydown', function(e) {
+            // Disable F12
+            if(e.keyCode == 123) {
+                e.preventDefault();
+                return false;
+            }
+            // Disable Ctrl+Shift+I or Cmd+Opt+I (Mac)
+            if(e.ctrlKey && e.shiftKey && e.keyCode == 73) {
+                e.preventDefault();
+                return false;
+            }
+            // Disable Ctrl+Shift+C (Inspect Element)
+            if(e.ctrlKey && e.shiftKey && e.keyCode == 67) {
+                e.preventDefault();
+                return false;
+            }
+            // Disable Ctrl+Shift+J (Console)
+            if(e.ctrlKey && e.shiftKey && e.keyCode == 74) {
+                e.preventDefault();
+                return false;
+            }
+            // Disable Ctrl+U (View Source)
+            if(e.ctrlKey && e.keyCode == 85) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    </script>
 </body>
 
 </html>

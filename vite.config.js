@@ -97,4 +97,11 @@ export default defineConfig({
     optimizeDeps: {
         exclude: ['lucide-react'],
     },
+    build: {
+        minify: 'esbuild',
+        sourcemap: false,
+    },
+    esbuild: {
+        drop: ['console', 'debugger'],
+    }
 });
