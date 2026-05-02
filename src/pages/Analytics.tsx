@@ -10,14 +10,14 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 
-type TimeRange = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+type TimeRange = 'today' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
 export default function Analytics() {
     const { user } = useAuth();
     const [salesData, setSalesData] = useState<any[]>([]);
     const [menuStats, setMenuStats] = useState<any[]>([]);
     const [rawSales, setRawSales] = useState<any[]>([]);
-    const [timeRange, setTimeRange] = useState<TimeRange>('daily');
+    const [timeRange, setTimeRange] = useState<TimeRange>('today');
     const [customStartDate, setCustomStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0]);
     const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
     const [loading, setLoading] = useState(false);
@@ -49,7 +49,9 @@ export default function Analytics() {
             const now = new Date();
             let startDate = new Date();
 
-            if (timeRange === 'daily') {
+            if (timeRange === 'today') {
+                startDate.setHours(0, 0, 0, 0); // Start of today
+            } else if (timeRange === 'daily') {
                 startDate.setDate(now.getDate() - 30); // Last 30 days
             } else if (timeRange === 'weekly') {
                 startDate.setMonth(now.getMonth() - 3); // Last ~12 weeks
@@ -79,7 +81,7 @@ export default function Analytics() {
                 let key = '';
                 let label = '';
 
-                if (timeRange === 'daily' || timeRange === 'custom') {
+                if (timeRange === 'today' || timeRange === 'daily' || timeRange === 'custom') {
                     key = sale.sale_date;
                     label = date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
                 } else if (timeRange === 'weekly') {
@@ -143,7 +145,8 @@ export default function Analytics() {
             doc.text('Laporan Penjualan Citra Rasa', pageWidth / 2, 15, { align: 'center' });
             
             doc.setFontSize(12);
-            const periodLabel = timeRange === 'daily' ? 'Harian (30 Hari Terakhir)' : 
+            const periodLabel = timeRange === 'today' ? 'Hari Ini' :
+                                timeRange === 'daily' ? 'Harian (30 Hari Terakhir)' : 
                                 timeRange === 'weekly' ? 'Mingguan (3 Bulan Terakhir)' : 
                                 timeRange === 'monthly' ? 'Bulanan (1 Tahun Terakhir)' : 
                                 timeRange === 'custom' ? `Custom (${new Date(customStartDate).toLocaleDateString('id-ID')} - ${new Date(customEndDate).toLocaleDateString('id-ID')})` : 'Tahunan';
@@ -240,7 +243,8 @@ export default function Analytics() {
                             value={timeRange}
                             onChange={(e) => setTimeRange(e.target.value as TimeRange)}
                             options={[
-                                { value: 'daily', label: 'Harian' },
+                                { value: 'today', label: 'Hari Ini' },
+                                { value: 'daily', label: '30 Hari Terakhir' },
                                 { value: 'weekly', label: 'Mingguan' },
                                 { value: 'monthly', label: 'Bulanan' },
                                 { value: 'yearly', label: 'Tahunan' },
